@@ -7,8 +7,8 @@ from matplotlib.ticker import MaxNLocator
 
 lines_dict = {"Rubin": "--", "Roman":"-"}
 
-title = 'r"Kilonova at 1Gpc, $\theta$=26 deg"'
-out_filename = "prelim_lc_polar.pdf"
+title = r"GW170817 best fit at 1Gpc, $\theta$=26 deg"
+out_filename = "figures_lc/prelim_lc_polar.pdf"
 models = ["/Users/igor/data/POSSIS/POSSIS_lc_191022/nph1.0e+06_dyn0.005-0.20-0.20_wind0.050-0.05_theta25.84_z0.2.dat"]
 #models = ["/Users/igor/data/POSSIS/POSSIS_lc_191022/nph1.0e+06_dyn0.005-0.20-0.20_wind0.050-0.05_theta78.46_z0.2.dat"]
 
