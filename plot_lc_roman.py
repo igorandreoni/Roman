@@ -329,6 +329,7 @@ def doPlot(t, out_filename, title, doShow=True, doSave=True, z=0.2):
         # And in the insets
         axins.plot([0, 55], [24.03,24.03], color='k', linewidth=3, linestyle='--', label="LSST r limit 30s")
         axins.plot([0, 55], [25.0,25.0], color='orchid', linewidth=3, linestyle='-', label="F129 limit 55s")
+        axins.plot([0, 55], [28.0,28.0], color='fuchsia', linewidth=3, linestyle='-', label="F129 limit 1hr")
 
         # Set plot parameters
         plt.rcParams['xtick.labelsize']=11
@@ -338,11 +339,17 @@ def doPlot(t, out_filename, title, doShow=True, doSave=True, z=0.2):
             ax.set_ylim([29, 19.5])
             # for the inset
             x1, x2, y1, y2 = 0.5, 7.5, 26, 19.5
-        else:
+        elif z == 0.2:
             ax.set_xlim([0.5, 21])
             ax.set_ylim([29, 22.0])
             # for the inset
             x1, x2, y1, y2 = 0.5, 3.5, 26, 22.5
+        elif z == 3000:
+            ax.set_xlim([0.5, 12])
+            ax.set_ylim([29, 22.0])
+            # for the inset
+            x1, x2, y1, y2 = 0.5, 3.5, 29, 24.5
+            title = title.replace("3000Mpc", "3Gpc")
         ax.set_xlabel("Time from merger (days)", fontsize=13)
         ax.set_ylabel("AB Magnitude", fontsize=13)
         ax.set_title(title, fontsize=13)
@@ -396,72 +403,115 @@ def getFractionDetect(t, N=2, M=1, gap=4, n_iterations=100, filters=None):
 
 
 if __name__ == "__main__":
-    getMetric = True
-    Area = 19.
-    N = 2 # number of detections
-    M = 3 # in at least M filters
-    gap = 6 # gap between observations
+    getMetric = False
+    Area = 19. * 2
+    N = 3 # number of detections
+    M = 2 # in at least M filters
+    gaps = [1, 2, 4, 8, 16] # gaps between observations
     Ntot = 100000 # Total number of injections
-    distances_Mpc = np.array(list(np.linspace(100, 2000, 20)) + [3000, 4000, 5000, 6000])
+    distances_Mpc = np.array(list(np.linspace(100, 2000, 20)) + [3000, 4000, 5000, 6000, 7000])
     rate = 210.
     rate_high = rate + 240
     rate_low = rate - 120
     #selected_filters = ['f146']
-    selected_filters = ['f062', 'f087', 'f106', 'f129', 'f158', 'f184', 'f213']
+    #selected_filters = ['f062', 'f087', 'f106', 'f129', 'f158', 'f184', 'f213']
+    selected_filters = ['f158', 'f213']
     # Raw potential table
-    paper_getRawPotential()
+    #paper_getRawPotential()
 
-    # redshift (available: 0.05, 0.02)
+    # redshift (available: 0.05, 0.02) or for z>100 it is actually the distance in Mpc
     #z = 0.05
-    z = 0.2
-    if z != 0.2:
+    #z = 0.2
+    z = 3000
+    if z == 0.05:
         models = [x.replace("z0.2.dat", f"z{z}.dat") for x in models]
         titles = [x.replace("1Gpc", "230Mpc") for x in titles]
-    out_filenames = [x.replace(".pdf", f"_z{z}.pdf") for x in out_filenames]
+    elif z > 50:
+        models = [x.replace("z0.2.dat", f"dMpc{z}.dat") for x in models]
+        titles = [x.replace("1Gpc", f"{z}Mpc") for x in titles]
+    if z > 50:
+        out_filenames = [x.replace(".pdf", f"_dMpc{z}.pdf") for x in out_filenames]
+    else:
+        out_filenames = [x.replace(".pdf", f"_z{z}.pdf") for x in out_filenames]
 
+    print("\hline\hline")
     if getMetric is False:
-        print("\hline\hline")
         print("model & tot. & epochs & epochs &  epochs \
 & filters  & filters & filters \\"+"\\")
         print("      & det. & $\geq$ 1 det & $\geq$ 2 det &  $\geq$ 3 det \
 & 2 det  & 3 det & 4 det \\"+"\\")
         print("\hline")
+
+    if getMetric is True:
+        out_str = "Model & "
+        out_str2 = " & "
+        for gap in gaps:
+            if gap ==1:
+                out_str += f"KN/y & "
+                out_str2 += f"gap {gap}d & "
+            else:
+                out_str += f"KN/y & gap {gap}d & "
+                out_str2 += f"gap {gap}d & /gap 1d & "
+        out_str = out_str[:-3] + "\\" + "\\"
+        out_str2 = out_str2[:-3] + "\\" + "\\"
+        print(out_str)
+        print(out_str2)
+
     for exp in ['55s', '1hr']:
         if getMetric is True:
-            print("EXPTIME:", exp)
+            print("\hline")
+            print(f"\multicolumn{{{len(gaps)*2}}}{{c}}{{Exposure: {exp} }} \\"+"\\")
+            print("\hline")
             # Define distrubution between 100 and 1000 Mpc z = ac.z_at_value(cosmo.distmod, (maglim - M)*u.mag)
             z_list = [ac.z_at_value(cosmo.luminosity_distance, d) for d in distances_Mpc*u.Mpc]
             vols = [cosmo.comoving_volume(zz).to("Gpc3").value for zz in z_list]
             vols_norm = vols/np.sum(vols)
             # Assume what matters are all the params of filename but the distance
             for filename, out_filename, vol_norm in zip (models, out_filenames, vols_norm):
-                frac_list = []
+                try:
+                    modelname = model_dict[out_filename.replace(f"_z{z}.pdf", ".pdf")]
+                except KeyError:
+                    modelname = model_dict[out_filename.replace(f"_dMpc{z}.pdf", ".pdf")]
+                out_str = f"{modelname} & "
+                doFrac0 = True
                 frac0_list = []
-                modelname = model_dict[out_filename.replace(f"_z{z}.pdf", ".pdf")]
-                for d in distances_Mpc:
-                    # Open the file for a certain model at a given distance
-                    filename_d = filename.replace(f"z{z}", f"dMpc{int(d)}")
-                    tab = ascii.read(filename_d)
-                    # Run the metric
-                    frac = getFractionDetect(tab, N=N, M=M, gap=gap,
-                                             n_iterations=np.round(vol_norm*Ntot)+1,
-                                             filters = selected_filters)
-                    # Fraction for nightly cadence
-                    frac0 = getFractionDetect(tab, N=N, M=M, gap=1.,
-                                              n_iterations=np.round(vol_norm*Ntot)+1,
-                                              filters = selected_filters)
-                    frac_list.append(frac)
-                    frac0_list.append(frac0)
-                    #print(filename_d, frac)
-                # Total numbers
-                tot_kn = rate * np.sum([frac_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
-                tot_kn_high = rate_high * np.sum([frac_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
-                tot_kn_low = rate_low * np.sum([frac_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
-                tot_kn0 = rate * np.sum([frac0_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
-                print(f"{modelname} & ${'{:.1f}'.format(tot_kn)}^{{+{'{:.1f}'.format(tot_kn_high-tot_kn)}}}_{{-{'{:.1f}'.format(tot_kn-tot_kn_low)}}}$ & {'{:.1f}'.format(tot_kn/tot_kn0)}")
+                # Iterate over the gaps
+                for gap in gaps:
+                    frac_list = []
+                    for d in distances_Mpc:
+                        # Open the file for a certain model at a given distance
+                        filename_d = filename.replace(f"z{z}", f"dMpc{int(d)}")
+                        tab = ascii.read(filename_d)
+                        # Run the metric
+                        frac = getFractionDetect(tab, N=N, M=M, gap=gap,
+                                                 n_iterations=np.round(vol_norm*Ntot)+1,
+                                                 filters = selected_filters)
+                        if doFrac0 is True:
+                            # Fraction for nightly cadence
+                            frac0 = getFractionDetect(tab, N=N, M=M, gap=1.,
+                                                      n_iterations=np.round(vol_norm*Ntot)+1,
+                                                      filters = selected_filters)
+                            frac0_list.append(frac0)
+                        frac_list.append(frac)
+                        #print(filename_d, frac)
+                    # Total numbers
+                    tot_kn = rate * np.sum([frac_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
+                    tot_kn_high = rate_high * np.sum([frac_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
+                    tot_kn_low = rate_low * np.sum([frac_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
+                    tot_kn0 = rate * np.sum([frac0_list[i] * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
+                    if gap == 1:
+                        out_str += f"${'{:.1f}'.format(tot_kn)}^{{+{'{:.1f}'.format(tot_kn_high-tot_kn)}}}_{{-{'{:.1f}'.format(tot_kn-tot_kn_low)}}}$ & "
+                    else:
+                        out_str += f"${'{:.1f}'.format(tot_kn)}^{{+{'{:.1f}'.format(tot_kn_high-tot_kn)}}}_{{-{'{:.1f}'.format(tot_kn-tot_kn_low)}}}$ & {'{:.1f}'.format(tot_kn/tot_kn0)} & "
+                    # Don't repeat the calculation for frac0
+                    doFrac0 = False
+                # Fix the output
+                out_str = out_str.replace("0.0^{+0.0}_{-0.0}", "< 0.1")
+                out_str = out_str[:-3] + "\\" + "\\"
+                print(out_str)
             raw_pot = rate * np.sum([1 * (vols[i] - vols[i-1]) for i in np.arange(len(vols)-1)+1]) * Area/41253
-            print(f"N of kilonovae within {distances_Mpc[-1]} Mpc in an area of {Area}deg2: {rate*vols[-1] * Area/41253}/y")
-            print("----")
+            print(f"N of kilonovae within {distances_Mpc[-1]} Mpc in an area of {Area}deg2: {rate*vols[-1] * Area/41253}^{{+{'{:.1f}'.format(rate_high*vols[-1] * Area/41253-rate * vols[-1] * Area/41253)}}}_{{-{'{:.1f}'.format(rate * vols[-1] * Area/41253- rate_low * vols[-1] * Area/41253)}}}")
+            print("\hline")
         if getMetric is True:
             continue
         print(f"\multicolumn{{8}}{{c}}{{Exposure: {exp} }} \\"+"\\")
@@ -485,7 +535,10 @@ if __name__ == "__main__":
             filt_all = []
             for d in days:
                 filt_all += result[d][exp]
-            modelname = model_dict[out_filename.replace(f"_z{z}.pdf", ".pdf")]
+            try:
+                modelname = model_dict[out_filename.replace(f"_z{z}.pdf", ".pdf")]
+            except KeyError:
+                modelname = model_dict[out_filename.replace(f"_dMpc{z}.pdf", ".pdf")]
             print(modelname, "&",  det_tot, "&",
                   ",".join([str(k) for k in result.keys() if len(result[k][exp]) >= 1]), "&",
                   ",".join([str(k) for k in result.keys() if len(result[k][exp]) >= 2]), "&",
@@ -502,8 +555,8 @@ if __name__ == "__main__":
             plt.show()
             print("\hline")
 
-    #for filename, out_filename, title in zip(models, out_filenames, titles):
-    #    tab = ascii.read(filename)
-    #    doPlot(tab, out_filename, title, doShow=True, doSave=True, z=z)
+    for filename, out_filename, title in zip(models, out_filenames, titles):
+        tab = ascii.read(filename)
+        doPlot(tab, out_filename, title, doShow=True, doSave=True, z=z)
 
         
